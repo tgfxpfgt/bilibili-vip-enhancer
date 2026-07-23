@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "B站大会员增强助手",
+    "description": "扩展名称"
+  },
+  "extDescription": {
+    "message": "B站大会员专属权益增强、播放器优化、弹幕管理、页面净化、性能节流工具",
+    "description": "扩展描述"
+  }
+}

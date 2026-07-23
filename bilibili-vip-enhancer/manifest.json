@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "B站大会员增强助手",
+  "version": "1.0.0",
+  "description": "B站大会员专属权益增强、播放器优化、弹幕管理、页面净化、性能节流工具",
+  "default_locale": "zh_CN",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "downloads",
+    "alarms"
+  ],
+  "host_permissions": [
+    "*://*.bilibili.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.bilibili.com/*"],
+      "js": [
+        "content/utils.js",
+        "content/player-enhancer.js",
+        "content/danmaku-manager.js",
+        "content/vip-panel.js",
+        "content/page-purifier.js",
+        "content/performance-throttle.js",
+        "content/browse-tools.js",
+        "content/video-info.js",
+        "content/local-tags.js",
+        "content/main.js"
+      ],
+      "css": ["styles/inject.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

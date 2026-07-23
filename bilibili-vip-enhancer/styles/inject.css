@@ -1,0 +1,112 @@
+/**
+ * B站大会员增强助手 - 注入页面全局样式
+ * 功能：隐藏元素、宽屏模式、弹幕样式覆盖、全屏UI隐藏
+ */
+
+/* ===== 全屏模式隐藏UI ===== */
+.bili-enhancer-fullscreen .bpx-player-dm-setting,
+.bili-enhancer-fullscreen .bpx-player-setting,
+.bili-enhancer-fullscreen .bpx-player-ctrl-bottom .bpx-player-control-wrap {
+  opacity: 0 !important;
+  transition: opacity 0.3s;
+}
+.bili-enhancer-fullscreen .bpx-player-dm-setting:hover,
+.bili-enhancer-fullscreen .bpx-player-setting:hover {
+  opacity: 1 !important;
+}
+
+/* ===== 宽屏模式基础 ===== */
+.bili-enhancer-widescreen .video-page-container {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+/* ===== 通用隐藏类 ===== */
+.bili-enhancer-hidden {
+  display: none !important;
+}
+
+/* ===== 提示消息动画 ===== */
+.bili-enhancer-toast {
+  animation: biliToastIn 0.3s ease;
+}
+@keyframes biliToastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ===== 标签按钮悬停 ===== */
+.bili-enhancer-tag-btn:hover,
+.bili-enhancer-ts-btn:hover,
+.bili-enhancer-info-btn:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+/* ===== 高级弹幕按钮 ===== */
+.bili-enhancer-dm-advanced button:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
+}
+
+/* ===== 会员标记 ===== */
+.bili-enhancer-vip-badge {
+  animation: biliBadgeIn 0.5s ease;
+}
+@keyframes biliBadgeIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 0.9; transform: scale(1); }
+}
+
+/* ===== 分P列表优化 ===== */
+.bili-enhancer-ep-sticky {
+  position: sticky !important;
+  top: 10px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* ===== 已看标记 ===== */
+.bili-enhancer-watched {
+  opacity: 0.6;
+}
+.bili-enhancer-watched::after {
+  content: ' ✓';
+  color: #999;
+  font-size: 11px;
+}
+
+/* ===== 评论工具栏 ===== */
+.bili-enhancer-comment-tools button:hover {
+  opacity: 0.85;
+}
+
+/* ===== 信息面板 ===== */
+.bili-enhancer-info-panel {
+  animation: biliPanelIn 0.2s ease;
+}
+@keyframes biliPanelIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== 标签对话框 ===== */
+.bili-enhancer-tag-dialog {
+  animation: biliDialogIn 0.2s ease;
+}
+@keyframes biliDialogIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ===== 滚动条美化（分P列表） ===== */
+.bili-enhancer-ep-sticky::-webkit-scrollbar {
+  width: 4px;
+}
+.bili-enhancer-ep-sticky::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 2px;
+}
+.bili-enhancer-ep-sticky::-webkit-scrollbar-track {
+  background: transparent;
+}

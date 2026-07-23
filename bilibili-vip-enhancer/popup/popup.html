@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B站大会员增强助手</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- 顶部标题栏 -->
+    <header class="popup-header">
+      <div class="header-title">
+        <span class="logo">V</span>
+        <h1>B站大会员增强助手</h1>
+      </div>
+      <div class="vip-status" id="vipStatus">检测中...</div>
+    </header>
+
+    <!-- Tab导航 -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="vip">会员专属</button>
+      <button class="tab-btn" data-tab="player">播放设置</button>
+      <button class="tab-btn" data-tab="danmaku">弹幕设置</button>
+      <button class="tab-btn" data-tab="perf">性能节流</button>
+      <button class="tab-btn" data-tab="tools">更多工具</button>
+    </nav>
+
+    <!-- 会员专属设置 -->
+    <section class="tab-panel active" id="tab-vip">
+      <div class="section-card vip-overview">
+        <h3>会员权益总览</h3>
+        <div class="vip-info-grid">
+          <div class="vip-info-item">
+            <span class="label">会员状态</span>
+            <span class="value" id="vipState">--</span>
+          </div>
+          <div class="vip-info-item">
+            <span class="label">到期时间</span>
+            <span class="value" id="vipExpire">--</span>
+          </div>
+          <div class="vip-info-item">
+            <span class="label">会员类型</span>
+            <span class="value" id="vipType">--</span>
+          </div>
+        </div>
+        <div class="quick-links">
+          <a href="https://account.bilibili.com/big/myPackage" target="_blank" class="link-btn">领取每月福利</a>
+          <a href="https://account.bilibili.com/big" target="_blank" class="link-btn">会员中心</a>
+          <a href="https://manga.bilibili.com" target="_blank" class="link-btn">漫画权益</a>
+          <a href="https://show.bilibili.com" target="_blank" class="link-btn">会员购</a>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>画质自动优化</h3>
+        <div class="setting-row">
+          <span>自动选择最高画质</span>
+          <label class="toggle"><input type="checkbox" id="autoQuality" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>自动开启HDR/高帧率</span>
+          <label class="toggle"><input type="checkbox" id="autoHDR" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>自动选择最高音质</span>
+          <label class="toggle"><input type="checkbox" id="autoHQAudio" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>画质偏好（番剧）</span>
+          <select id="qualityBangumi" class="select-input">
+            <option value="127">4K 超清</option>
+            <option value="126">杜比视界</option>
+            <option value="125">HDR 真彩</option>
+            <option value="120">4K</option>
+            <option value="116">1080P 60帧</option>
+            <option value="112">1080P 高码率</option>
+            <option value="80">1080P</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <span>画质偏好（普通视频）</span>
+          <select id="qualityNormal" class="select-input">
+            <option value="116">1080P 60帧</option>
+            <option value="112">1080P 高码率</option>
+            <option value="80">1080P</option>
+            <option value="64">720P</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>会员页面优化</h3>
+        <div class="setting-row">
+          <span>隐藏「开通会员」弹窗</span>
+          <label class="toggle"><input type="checkbox" id="hideVipDialogs" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>跳过会员引导页</span>
+          <label class="toggle"><input type="checkbox" id="autoSkipGuide" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>会员专属内容标记</span>
+          <label class="toggle"><input type="checkbox" id="vipBadge" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>高级弹幕快捷按钮</span>
+          <label class="toggle"><input type="checkbox" id="autoDanmaku" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>隐藏会员推销横幅</span>
+          <label class="toggle"><input type="checkbox" id="hideVipPromo" checked><span class="slider"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 播放设置 -->
+    <section class="tab-panel" id="tab-player">
+      <div class="section-card">
+        <h3>快捷键</h3>
+        <div class="setting-row">
+          <span>启用全局快捷键</span>
+          <label class="toggle"><input type="checkbox" id="shortcuts" checked><span class="slider"></span></label>
+        </div>
+        <div class="shortcut-list">
+          <div class="shortcut-item"><kbd>[</kbd> <kbd>]</kbd> 倍速 -/+0.25</div>
+          <div class="shortcut-item"><kbd>,</kbd> <kbd>.</kbd> 逐帧后退/前进</div>
+          <div class="shortcut-item"><kbd>Shift</kbd>+<kbd>↑↓</kbd> 音量增强</div>
+          <div class="shortcut-item"><kbd>R</kbd> 画面旋转 <kbd>M</kbd> 镜像</div>
+          <div class="shortcut-item"><kbd>S</kbd> 截图保存</div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>播放记忆</h3>
+        <div class="setting-row">
+          <span>记忆播放进度</span>
+          <label class="toggle"><input type="checkbox" id="rememberProgress" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>记忆倍速设置</span>
+          <label class="toggle"><input type="checkbox" id="rememberRate" checked><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>播放控制</h3>
+        <div class="setting-row">
+          <span>禁用自动连播</span>
+          <label class="toggle"><input type="checkbox" id="disableAutoNext"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>切后台自动暂停</span>
+          <label class="toggle"><input type="checkbox" id="pauseOnHidden" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>音量增强（超100%）</span>
+          <label class="toggle"><input type="checkbox" id="volumeBoost" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>全屏隐藏控制面板</span>
+          <label class="toggle"><input type="checkbox" id="fullscreenHideUI" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>定时停止（分钟，0=关闭）</span>
+          <input type="number" id="timerStop" class="number-input" value="0" min="0" max="180">
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>画面滤镜</h3>
+        <div class="setting-row">
+          <span>亮度</span>
+          <input type="range" id="brightness" min="50" max="150" value="100" class="range-input">
+          <span class="range-val" id="brightnessVal">100%</span>
+        </div>
+        <div class="setting-row">
+          <span>对比度</span>
+          <input type="range" id="contrast" min="50" max="150" value="100" class="range-input">
+          <span class="range-val" id="contrastVal">100%</span>
+        </div>
+        <div class="setting-row">
+          <span>饱和度</span>
+          <input type="range" id="saturate" min="0" max="200" value="100" class="range-input">
+          <span class="range-val" id="saturateVal">100%</span>
+        </div>
+        <div class="setting-row">
+          <span>画面降噪</span>
+          <label class="toggle"><input type="checkbox" id="denoise"><span class="slider"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 弹幕设置 -->
+    <section class="tab-panel" id="tab-danmaku">
+      <div class="section-card">
+        <h3>弹幕样式</h3>
+        <div class="setting-row">
+          <span>字号大小</span>
+          <input type="range" id="dmFontSize" min="12" max="50" value="25" class="range-input">
+          <span class="range-val" id="dmFontSizeVal">25px</span>
+        </div>
+        <div class="setting-row">
+          <span>透明度</span>
+          <input type="range" id="dmOpacity" min="10" max="100" value="100" class="range-input">
+          <span class="range-val" id="dmOpacityVal">100%</span>
+        </div>
+        <div class="setting-row">
+          <span>显示区域（防遮挡）</span>
+          <input type="range" id="dmArea" min="25" max="100" value="100" class="range-input">
+          <span class="range-val" id="dmAreaVal">100%</span>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>弹幕模式</h3>
+        <div class="setting-row">
+          <span>显示模式</span>
+          <select id="dmMode" class="select-input">
+            <option value="all">全部弹幕</option>
+            <option value="top-only">仅顶部/底部</option>
+            <option value="scroll-only">仅滚动弹幕</option>
+            <option value="none">关闭全部弹幕</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>关键词屏蔽</h3>
+        <div class="setting-row">
+          <span>启用关键词过滤</span>
+          <label class="toggle"><input type="checkbox" id="dmFilterEnable" checked><span class="slider"></span></label>
+        </div>
+        <textarea id="dmKeywords" class="textarea-input" placeholder="每行一个关键词，支持正则（用/包裹）&#10;例如：&#10;前方高能&#10;/剧透.*&#10;xxx"></textarea>
+        <div class="btn-row">
+          <button class="action-btn" id="dmExport">导出关键词</button>
+          <button class="action-btn" id="dmImport">导入关键词</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 性能节流 -->
+    <section class="tab-panel" id="tab-perf">
+      <div class="section-card">
+        <h3>资源占用控制</h3>
+        <div class="setting-row">
+          <span>闲置自动节流</span>
+          <label class="toggle"><input type="checkbox" id="idleThrottle" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>闲置超时（秒）</span>
+          <input type="number" id="idleTimeout" class="number-input" value="180" min="30" max="600">
+        </div>
+        <div class="setting-row">
+          <span>封面图片懒加载</span>
+          <label class="toggle"><input type="checkbox" id="lazyLoad" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>禁用视频预加载</span>
+          <label class="toggle"><input type="checkbox" id="disablePreload" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>关闭预览自动播放</span>
+          <label class="toggle"><input type="checkbox" id="disableAutoplay" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>定时清理无用DOM</span>
+          <label class="toggle"><input type="checkbox" id="domCleanup" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>缩略图轻量化</span>
+          <label class="toggle"><input type="checkbox" id="lightweightThumb" checked><span class="slider"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- 更多工具 -->
+    <section class="tab-panel" id="tab-tools">
+      <div class="section-card">
+        <h3>页面净化</h3>
+        <div class="setting-row">
+          <span>隐藏广告推广</span>
+          <label class="toggle"><input type="checkbox" id="hideAds" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>隐藏活动横幅</span>
+          <label class="toggle"><input type="checkbox" id="hideBanner" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>强制宽屏模式</span>
+          <label class="toggle"><input type="checkbox" id="wideScreen" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>简化页面布局</span>
+          <label class="toggle"><input type="checkbox" id="simplifyLayout" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>关闭直播礼物特效</span>
+          <label class="toggle"><input type="checkbox" id="hideLiveEffects" checked><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>浏览效率</h3>
+        <div class="setting-row">
+          <span>评论区增强</span>
+          <label class="toggle"><input type="checkbox" id="commentEnhance" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>分P列表优化</span>
+          <label class="toggle"><input type="checkbox" id="multiPartOptimize" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>时间戳复制按钮</span>
+          <label class="toggle"><input type="checkbox" id="timestampCopy" checked><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <span>视频编码信息</span>
+          <label class="toggle"><input type="checkbox" id="videoInfo" checked><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>UP主屏蔽</h3>
+        <textarea id="blockedUPs" class="textarea-input" placeholder="每行一个UP主UID&#10;例如：&#10;12345678&#10;87654321"></textarea>
+        <div class="btn-row">
+          <button class="action-btn" id="upExport">导出屏蔽列表</button>
+          <button class="action-btn" id="upImport">导入屏蔽列表</button>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <h3>数据管理</h3>
+        <div class="btn-row">
+          <button class="action-btn primary" id="exportAll">导出全部配置</button>
+          <button class="action-btn" id="importAll">导入配置</button>
+          <button class="action-btn danger" id="resetAll">重置所有设置</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 底部状态 -->
+    <footer class="popup-footer">
+      <span>v1.0.0 | 仅对大会员账号生效 | 纯本地运行</span>
+    </footer>
+  </div>
+
+  <input type="file" id="fileInput" accept=".json" style="display:none">
+  <script src="popup.js"></script>
+</body>
+</html>
