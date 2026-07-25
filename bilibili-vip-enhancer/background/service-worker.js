@@ -3,75 +3,34 @@
  * 职责：会员状态缓存、全局消息中转、标签页休眠监听、定时任务调度
  */
 
-// 默认配置
-const DEFAULT_CONFIG = {
-  vipInfo: { status: 0, type: 0, expireTime: '', lastCheck: 0 },
-  qualityPrefs: { bangumi: '127', movie: '127', normal: '116' },
-  playerMemory: {},
-  danmakuConfig: {
-    fontSize: 25,
-    opacity: 100,
-    area: 100,
-    blockedKeywords: [],
-    mode: 'all',
-    enableFilter: true
-  },
-  purifyConfig: {
-    hideAds: true,
-    hideBanner: true,
-    wideScreen: true,
-    hideLiveEffects: true,
-    simplifyLayout: true,
-    hideVipPromo: true
-  },
-  perfConfig: {
-    idleThrottle: true,
-    idleTimeout: 180,
-    lazyLoad: true,
-    disablePreload: true,
-    disableAutoplay: true,
-    domCleanup: true,
-    lightweightThumb: true
-  },
-  filterConfig: {
-    brightness: 100,
-    contrast: 100,
-    saturate: 100,
-    denoise: false
-  },
-  playerConfig: {
-    autoQuality: true,
-    autoHDR: true,
-    autoHighFPS: true,
-    autoHQAudio: true,
-    rememberProgress: true,
-    rememberRate: true,
-    disableAutoNext: false,
-    pauseOnHidden: true,
-    timerStop: 0,
-    shortcuts: true,
-    volumeBoost: true,
-    fullscreenHideUI: true
-  },
-  browseConfig: {
-    commentEnhance: true,
-    multiPartOptimize: true,
-    timestampCopy: true,
-    videoInfo: true,
-    upBlock: true
-  },
-  vipConfig: {
-    autoSkipGuide: true,
-    hideVipDialogs: true,
-    vipBadge: true,
-    autoDanmaku: true
-  },
-  blockedUPs: [],
-  localTags: {},
-  purchasedList: []
+// 加载共享常量（路径相对 service worker 文件）
+importScripts('../constants.js');
+
+// ==================== 消息路由表 ====================
+
+const handlers = {
+  [MSG.GET_CONFIG]:    (data) => handleGetConfig(data),
+  [MSG.SET_CONFIG]:    (data) => handleSetConfig(data),
+  [MSG.CHECK_VIP]:     () => handleCheckVip(),
+  [MSG.GET_VIP_INFO]:  () => handleGetVipInfo(),
+  [MSG.SAVE_PROGRESS]: (data) => handleSaveProgress(data),
+  [MSG.GET_PROGRESS]:  (data) => handleGetProgress(data),
+  [MSG.SCREENSHOT]:    (data) => handleScreenshot(data),
+  [MSG.EXPORT_DATA]:   (data) => handleExportData(data),
+  [MSG.IMPORT_DATA]:   (data) => handleImportData(data)
 };
 
-// 初始化存储
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const handler = handlers[message.type];
+  if (handler) {
+    handler(message.data).then(sendResponse);
+    return true; // 保持异步响应通道
+  }
+  sendResponse({ success: false, error: 'Unknown message type: ' + message.type });
+});
+
+// ==================== 初始化 ====================
+
 chrome.runtime.onInstalled.addListener(async () => {
   const stored = await chrome.storage.local.get(null);
   if (!stored._initialized) {
@@ -80,99 +39,46 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
-// 消息处理
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  const { type, data } = message;
+// ==================== Handler 实现 ====================
 
-  switch (type) {
-    case 'GET_CONFIG':
-      handleGetConfig(data).then(sendResponse);
-      return true;
-
-    case 'SET_CONFIG':
-      handleSetConfig(data).then(sendResponse);
-      return true;
-
-    case 'CHECK_VIP':
-      handleCheckVip().then(sendResponse);
-      return true;
-
-    case 'GET_VIP_INFO':
-      handleGetVipInfo().then(sendResponse);
-      return true;
-
-    case 'SAVE_PROGRESS':
-      handleSaveProgress(data).then(sendResponse);
-      return true;
-
-    case 'GET_PROGRESS':
-      handleGetProgress(data).then(sendResponse);
-      return true;
-
-    case 'SCREENSHOT':
-      handleScreenshot(data, sender.tab).then(sendResponse);
-      return true;
-
-    case 'EXPORT_DATA':
-      handleExportData(data).then(sendResponse);
-      return true;
-
-    case 'IMPORT_DATA':
-      handleImportData(data).then(sendResponse);
-      return true;
-
-    default:
-      sendResponse({ success: false, error: 'Unknown message type' });
-  }
-});
-
-// 获取配置
 async function handleGetConfig(keys) {
   try {
-    if (keys && keys.length > 0) {
-      const result = await chrome.storage.local.get(keys);
-      return { success: true, data: result };
-    }
-    const result = await chrome.storage.local.get(null);
+    const result = keys && keys.length > 0
+      ? await chrome.storage.local.get(keys)
+      : await chrome.storage.local.get(null);
     return { success: true, data: result };
   } catch (e) {
     return { success: false, error: e.message };
   }
 }
 
-// 设置配置
 async function handleSetConfig(data) {
   try {
     await chrome.storage.local.set(data);
-    // 通知所有bilibili标签页配置更新
+    // 通知所有 bilibili 标签页
     try {
       const tabs = await chrome.tabs.query({ url: '*://*.bilibili.com/*' });
       for (const tab of tabs) {
-        chrome.tabs.sendMessage(tab.id, { type: 'CONFIG_UPDATED', data }).catch(() => {});
+        chrome.tabs.sendMessage(tab.id, { type: MSG.CONFIG_UPDATED, data }).catch(() => {});
       }
-    } catch (e) { /* 忽略标签页查询失败 */ }
+    } catch (e) { /* 标签页查询失败不影响写入 */ }
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };
   }
 }
 
-// 检查VIP状态（通过content script请求B站API）
 async function handleCheckVip() {
   try {
     const stored = await chrome.storage.local.get('vipInfo');
     const vipInfo = stored.vipInfo || { lastCheck: 0 };
-    // 缓存10分钟
-    if (Date.now() - vipInfo.lastCheck < 600000) {
-      return { success: true, data: vipInfo };
-    }
-    return { success: true, data: vipInfo, needRefresh: true };
+    const isCached = Date.now() - (vipInfo.lastCheck || 0) < TIMING.VIP_CACHE_BG;
+    return { success: true, data: vipInfo, needRefresh: !isCached };
   } catch (e) {
     return { success: false, error: e.message };
   }
 }
 
-// 获取VIP信息
 async function handleGetVipInfo() {
   try {
     const stored = await chrome.storage.local.get('vipInfo');
@@ -182,21 +88,24 @@ async function handleGetVipInfo() {
   }
 }
 
-// 保存播放进度
 async function handleSaveProgress(data) {
   try {
     const { key, progress } = data;
     const stored = await chrome.storage.local.get('playerMemory');
     const playerMemory = stored.playerMemory || {};
     playerMemory[key] = { ...progress, savedAt: Date.now() };
-    // 限制存储数量，最多保存500条
+
+    // 限制存储数量
     const keys = Object.keys(playerMemory);
-    if (keys.length > 500) {
-      const sorted = keys.sort((a, b) => (playerMemory[a].savedAt || 0) - (playerMemory[b].savedAt || 0));
-      for (let i = 0; i < keys.length - 500; i++) {
+    if (keys.length > LIMITS.MAX_PLAYER_MEMORY) {
+      const sorted = keys.sort((a, b) =>
+        (playerMemory[a].savedAt || 0) - (playerMemory[b].savedAt || 0)
+      );
+      for (let i = 0; i < keys.length - LIMITS.MAX_PLAYER_MEMORY; i++) {
         delete playerMemory[sorted[i]];
       }
     }
+
     await chrome.storage.local.set({ playerMemory });
     return { success: true };
   } catch (e) {
@@ -204,20 +113,17 @@ async function handleSaveProgress(data) {
   }
 }
 
-// 获取播放进度
 async function handleGetProgress(data) {
   try {
-    const { key } = data;
     const stored = await chrome.storage.local.get('playerMemory');
     const playerMemory = stored.playerMemory || {};
-    return { success: true, data: playerMemory[key] || null };
+    return { success: true, data: playerMemory[data.key] || null };
   } catch (e) {
     return { success: false, error: e.message };
   }
 }
 
-// 截图保存
-async function handleScreenshot(data, tab) {
+async function handleScreenshot(data) {
   try {
     const { dataUrl, filename } = data;
     await chrome.downloads.download({
@@ -231,11 +137,11 @@ async function handleScreenshot(data, tab) {
   }
 }
 
-// 导出数据
 async function handleExportData(data) {
   try {
     const { type: exportType } = data;
     let exportData = {};
+
     if (exportType === 'blockedUPs') {
       const stored = await chrome.storage.local.get('blockedUPs');
       exportData = { blockedUPs: stored.blockedUPs || [] };
@@ -248,11 +154,13 @@ async function handleExportData(data) {
     } else {
       exportData = await chrome.storage.local.get(null);
     }
+
     const jsonStr = JSON.stringify(exportData, null, 2);
     const bytes = new TextEncoder().encode(jsonStr);
     let binary = '';
     bytes.forEach(b => binary += String.fromCharCode(b));
     const dataUrl = 'data:application/json;base64,' + btoa(binary);
+
     await chrome.downloads.download({
       url: dataUrl,
       filename: `bilibili_enhancer_${exportType}_${Date.now()}.json`,
@@ -264,47 +172,68 @@ async function handleExportData(data) {
   }
 }
 
-// 导入数据
+/**
+ * 导入数据 — 带白名单验证，防止恶意/损坏数据覆盖任意配置
+ */
 async function handleImportData(data) {
   try {
     const { importData: rawData } = data;
-    await chrome.storage.local.set(rawData);
-    return { success: true };
+    if (!rawData || typeof rawData !== 'object') {
+      return { success: false, error: '导入数据格式无效' };
+    }
+
+    // 白名单过滤：只允许写入已知的配置键
+    const filtered = {};
+    let importedCount = 0;
+    for (const key of Object.keys(rawData)) {
+      if (IMPORTABLE_KEYS.has(key)) {
+        filtered[key] = rawData[key];
+        importedCount++;
+      }
+    }
+
+    if (importedCount === 0) {
+      return { success: false, error: '导入数据中不包含任何有效配置项' };
+    }
+
+    await chrome.storage.local.set(filtered);
+    return { success: true, data: { importedCount } };
   } catch (e) {
     return { success: false, error: e.message };
   }
 }
 
-// 标签页休眠监听 - 标签不可见时通知content script暂停
+// ==================== 标签页监听 ====================
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && tab.url.includes('bilibili.com')) {
-    try {
-      chrome.tabs.sendMessage(tabId, { type: 'TAB_ACTIVATED' });
-    } catch (e) { /* 忽略 */ }
+    chrome.tabs.sendMessage(tabId, { type: MSG.TAB_ACTIVATED }).catch(() => {});
   }
 });
 
-// 定时清理过期的播放记忆（超过30天）
-chrome.alarms.create('cleanExpiredMemory', { periodInMinutes: 1440 });
+// ==================== 定时清理过期播放记忆 ====================
+
+chrome.alarms.create('cleanExpiredMemory', { periodInMinutes: LIMITS.CLEANUP_ALARM_MIN });
+
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === 'cleanExpiredMemory') {
-    try {
-      const stored = await chrome.storage.local.get('playerMemory');
-      const playerMemory = stored.playerMemory || {};
-      const now = Date.now();
-      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-      let changed = false;
-      for (const [key, val] of Object.entries(playerMemory)) {
-        if (now - (val.savedAt || 0) > thirtyDays) {
-          delete playerMemory[key];
-          changed = true;
-        }
+  if (alarm.name !== 'cleanExpiredMemory') return;
+  try {
+    const stored = await chrome.storage.local.get('playerMemory');
+    const playerMemory = stored.playerMemory || {};
+    const now = Date.now();
+    let changed = false;
+
+    for (const [key, val] of Object.entries(playerMemory)) {
+      if (now - (val.savedAt || 0) > LIMITS.MEMORY_EXPIRY_MS) {
+        delete playerMemory[key];
+        changed = true;
       }
-      if (changed) {
-        await chrome.storage.local.set({ playerMemory });
-      }
-    } catch (e) {
-      console.log('[B站增强] 清理过期记忆失败:', e);
     }
+
+    if (changed) {
+      await chrome.storage.local.set({ playerMemory });
+    }
+  } catch (e) {
+    console.warn('[B站增强] 清理过期记忆失败:', e.message);
   }
 });

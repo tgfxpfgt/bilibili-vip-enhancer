@@ -34,6 +34,7 @@
     {
       "matches": ["*://*.bilibili.com/*"],
       "js": [
+        "constants.js",
         "content/utils.js",
         "content/player-enhancer.js",
         "content/danmaku-manager.js",
