@@ -70,6 +70,16 @@ const BiliEnhancer = {
       if (cheeseMatch) return cheeseMatch[1];
       return null;
     },
+    /** 在内联 script 标签中按正则搜索（getAid/getCid 共用） */
+    _scanScripts(pattern) {
+      const scripts = document.querySelectorAll('script:not([src])');
+      const limit = Math.min(scripts.length, LIMITS.MAX_SCRIPT_SEARCH);
+      for (let i = 0; i < limit; i++) {
+        const match = scripts[i].textContent.match(pattern);
+        if (match) return match[1];
+      }
+      return null;
+    },
     getAid() {
       const params = new URLSearchParams(location.search);
       const urlAid = params.get('aid');
@@ -79,12 +89,7 @@ const BiliEnhancer = {
         if (state && state.aid) return String(state.aid);
         if (state && state.videoData && state.videoData.aid) return String(state.videoData.aid);
       } catch (e) { /* 跨域访问限制 */ }
-      const scripts = document.querySelectorAll('script:not([src])');
-      for (let i = 0; i < Math.min(scripts.length, LIMITS.MAX_SCRIPT_SEARCH); i++) {
-        const match = scripts[i].textContent.match(/"aid"\s*:\s*(\d+)/);
-        if (match) return match[1];
-      }
-      return null;
+      return this._scanScripts(/"aid"\s*:\s*(\d+)/);
     },
     getCid() {
       try {
@@ -92,12 +97,7 @@ const BiliEnhancer = {
         if (state && state.videoData && state.videoData.cid) return String(state.videoData.cid);
         if (state && state.cid) return String(state.cid);
       } catch (e) { /* 跨域访问限制 */ }
-      const scripts = document.querySelectorAll('script:not([src])');
-      for (let i = 0; i < Math.min(scripts.length, LIMITS.MAX_SCRIPT_SEARCH); i++) {
-        const match = scripts[i].textContent.match(/"cid"\s*:\s*(\d+)/);
-        if (match) return match[1];
-      }
-      return null;
+      return this._scanScripts(/"cid"\s*:\s*(\d+)/);
     },
     getPage() {
       const params = new URLSearchParams(location.search);
@@ -238,7 +238,7 @@ const BiliEnhancer = {
     try {
       if (window.__playinfo__) return window.__playinfo__;
       const scripts = document.querySelectorAll('script:not([src])');
-      for (let i = 0; i < Math.min(scripts.length, 15); i++) {
+      for (let i = 0; i < Math.min(scripts.length, LIMITS.MAX_SCRIPT_SEARCH); i++) {
         const text = scripts[i].textContent;
         const idx = text.indexOf('window.__playinfo__');
         if (idx === -1) continue;
@@ -408,6 +408,15 @@ const BiliEnhancer = {
         const id = setTimeout(fn, delay);
         timers.push({ type: 'timeout', id });
         return id;
+      },
+      /** 按 id 提前取消定时器（无需等待 destroy） */
+      clear(id) {
+        const idx = timers.findIndex(t => t.id === id);
+        if (idx === -1) return;
+        const { type } = timers[idx];
+        if (type === 'interval') clearInterval(id);
+        else clearTimeout(id);
+        timers.splice(idx, 1);
       },
       destroy() {
         timers.forEach(({ type, id }) => {

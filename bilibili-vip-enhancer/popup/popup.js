@@ -183,8 +183,8 @@ function bindPlayerEvents() {
 }
 
 function bindQualityEvents() {
-  bindSelect('qualityBangumi', (v) => updateQualityPrefs('bangumi', v));
-  bindSelect('qualityNormal', (v) => updateQualityPrefs('normal', v));
+  bindSelect('qualityBangumi', (v) => updateConfig('qualityPrefs', { bangumi: v }));
+  bindSelect('qualityNormal', (v) => updateConfig('qualityPrefs', { normal: v }));
 }
 
 function bindVipEvents() {
@@ -271,13 +271,6 @@ async function updateConfig(key, partial) {
   const res = await sendMsg(MSG.GET_CONFIG, [key]);
   const current = (res && res.success && res.data[key]) || {};
   await saveConfig({ [key]: { ...current, ...partial } });
-}
-
-async function updateQualityPrefs(key, value) {
-  const res = await sendMsg(MSG.GET_CONFIG, ['qualityPrefs']);
-  const current = (res && res.success && res.data.qualityPrefs) || {};
-  current[key] = value;
-  await saveConfig({ qualityPrefs: current });
 }
 
 async function saveConfig(data) {

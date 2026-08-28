@@ -11,7 +11,6 @@ importScripts('../constants.js');
 const handlers = {
   [MSG.GET_CONFIG]:    (data) => handleGetConfig(data),
   [MSG.SET_CONFIG]:    (data) => handleSetConfig(data),
-  [MSG.CHECK_VIP]:     () => handleCheckVip(),
   [MSG.GET_VIP_INFO]:  () => handleGetVipInfo(),
   [MSG.SAVE_PROGRESS]: (data) => handleSaveProgress(data),
   [MSG.GET_PROGRESS]:  (data) => handleGetProgress(data),
@@ -63,17 +62,6 @@ async function handleSetConfig(data) {
       }
     } catch (e) { /* 标签页查询失败不影响写入 */ }
     return { success: true };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
-
-async function handleCheckVip() {
-  try {
-    const stored = await chrome.storage.local.get('vipInfo');
-    const vipInfo = stored.vipInfo || { lastCheck: 0 };
-    const isCached = Date.now() - (vipInfo.lastCheck || 0) < TIMING.VIP_CACHE_BG;
-    return { success: true, data: vipInfo, needRefresh: !isCached };
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -137,20 +125,26 @@ async function handleScreenshot(data) {
   }
 }
 
+/** 部分导出类型 -> 需读取的 storage 键（'all' 表示全量导出） */
+const EXPORT_SOURCE_KEYS = {
+  blockedUPs:     ['blockedUPs'],
+  blockedKeywords: ['danmakuConfig'],
+  localTags:      ['localTags']
+};
+
 async function handleExportData(data) {
   try {
     const { type: exportType } = data;
     let exportData = {};
 
-    if (exportType === 'blockedUPs') {
-      const stored = await chrome.storage.local.get('blockedUPs');
-      exportData = { blockedUPs: stored.blockedUPs || [] };
-    } else if (exportType === 'blockedKeywords') {
-      const stored = await chrome.storage.local.get('danmakuConfig');
-      exportData = { blockedKeywords: (stored.danmakuConfig || {}).blockedKeywords || [] };
-    } else if (exportType === 'localTags') {
-      const stored = await chrome.storage.local.get('localTags');
-      exportData = { localTags: stored.localTags || {} };
+    const sourceKeys = EXPORT_SOURCE_KEYS[exportType];
+    if (sourceKeys) {
+      const stored = await chrome.storage.local.get(sourceKeys);
+      if (exportType === 'blockedKeywords') {
+        exportData = { blockedKeywords: (stored.danmakuConfig || {}).blockedKeywords || [] };
+      } else {
+        exportData = { [exportType]: stored[exportType] || (exportType === 'localTags' ? {} : []) };
+      }
     } else {
       exportData = await chrome.storage.local.get(null);
     }

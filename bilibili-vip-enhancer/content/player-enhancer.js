@@ -354,9 +354,12 @@ const PlayerEnhancer = {
   },
 
   setTimerStop(minutes) {
-    if (this.timerStopId) clearTimeout(this.timerStopId);
+    if (!this._timers) return; // 模块已销毁
+    if (this.timerStopId) this._timers.clear(this.timerStopId);
+    this.timerStopId = null;
     if (minutes <= 0) return;
-    this.timerStopId = setTimeout(() => {
+    this.timerStopId = this._timers.timeout(() => {
+      this.timerStopId = null;
       const video = this.video;
       if (video && !video.paused) {
         video.pause();
@@ -388,7 +391,6 @@ const PlayerEnhancer = {
     this._events?.destroy();
     this._observers?.destroy();
     this._timers?.destroy();
-    if (this.timerStopId) clearTimeout(this.timerStopId);
     if (this.audioContext) {
       this.audioContext.close().catch(() => {});
       this.audioContext = null;

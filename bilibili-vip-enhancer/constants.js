@@ -12,7 +12,6 @@
 const MSG = {
   GET_CONFIG:    'GET_CONFIG',
   SET_CONFIG:    'SET_CONFIG',
-  CHECK_VIP:     'CHECK_VIP',
   GET_VIP_INFO:  'GET_VIP_INFO',
   SAVE_PROGRESS: 'SAVE_PROGRESS',
   GET_PROGRESS:  'GET_PROGRESS',
@@ -106,7 +105,6 @@ const TIMING = {
   VIDEO_ELEMENT_TIMEOUT:  15000,  // 等待视频元素超时
   VIDEO_FALLBACK_TIMEOUT: 5000,   // 降级等待超时
   VIP_CACHE_DURATION:     300000, // VIP 状态缓存 5 分钟
-  VIP_CACHE_BG:           600000, // 后台 VIP 缓存 10 分钟
   PROGRESS_SAVE_INTERVAL: 5000,   // 进度保存间隔
   SPA_POLL_INTERVAL:      1000,   // SPA 路由轮询间隔
   SPA_REINIT_DELAY:       1500,   // 路由变化后重新初始化延迟

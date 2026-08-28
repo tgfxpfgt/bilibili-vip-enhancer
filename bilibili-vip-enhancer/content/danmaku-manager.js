@@ -5,13 +5,16 @@
 
 const DanmakuManager = {
   config: null,
-  observer: null,
   styleEl: null,
   modeStyleEl: null,
   _events: null,
+  _observers: null,
+  /** 当前弹幕过滤 Observer（由 _observers 管理器创建，需单独断开时置空） */
+  _filterObserver: null,
 
   async init() {
     this._events = BiliEnhancer.createEventManager();
+    this._observers = BiliEnhancer.createObserverManager();
 
     this.config = await BiliEnhancer.storage.get('danmakuConfig') || DEFAULT_CONFIG.danmakuConfig;
 
@@ -27,11 +30,8 @@ const DanmakuManager = {
         this.config = e.detail.danmakuConfig;
         this.applyStyles();
         this.setupDanmakuMode();
-        // 关键词变化时重新设置过滤
-        if (this.observer) {
-          this.observer.disconnect();
-          this.observer = null;
-        }
+        // 关键词变化时重建过滤 Observer
+        this.disconnectFilterObserver();
         this.setupKeywordFilter();
       }
     });
@@ -101,6 +101,14 @@ const DanmakuManager = {
     };
   },
 
+  /** 断开当前弹幕过滤 Observer（配置变化或销毁时统一入口） */
+  disconnectFilterObserver() {
+    if (this._filterObserver) {
+      this._filterObserver.disconnect();
+      this._filterObserver = null;
+    }
+  },
+
   setupKeywordFilter() {
     if (!this.config.enableFilter) return;
     const keywords = this.config.blockedKeywords || [];
@@ -110,18 +118,18 @@ const DanmakuManager = {
     if (patterns.length === 0) return;
 
     const callback = this.createFilterCallback(patterns);
+    const startWatch = (el) => {
+      this.disconnectFilterObserver();
+      this._filterObserver = this._observers.watch(el, callback, { childList: true, subtree: true });
+    };
 
     const container = BiliEnhancer.dom.queryFirst(DANMAKU_CONTAINER_SELECTORS);
     if (container) {
-      this.observer = new MutationObserver(callback);
-      this.observer.observe(container, { childList: true, subtree: true });
+      startWatch(container);
     } else {
       // 等待弹幕容器出现
       BiliEnhancer.dom.waitForElement(DANMAKU_CONTAINER_SELECTORS, TIMING.VIDEO_ELEMENT_TIMEOUT)
-        .then((el) => {
-          this.observer = new MutationObserver(callback);
-          this.observer.observe(el, { childList: true, subtree: true });
-        })
+        .then(startWatch)
         .catch(() => {});
     }
   },
@@ -173,10 +181,7 @@ const DanmakuManager = {
   updateKeywords(keywords) {
     this.config.blockedKeywords = keywords;
     BiliEnhancer.storage.set({ danmakuConfig: this.config });
-    if (this.observer) {
-      this.observer.disconnect();
-      this.observer = null;
-    }
+    this.disconnectFilterObserver();
     this.setupKeywordFilter();
   },
 
@@ -184,10 +189,8 @@ const DanmakuManager = {
 
   destroy() {
     this._events?.destroy();
-    if (this.observer) {
-      this.observer.disconnect();
-      this.observer = null;
-    }
+    this.disconnectFilterObserver();
+    this._observers?.destroy();
     if (this.styleEl) { this.styleEl.remove(); this.styleEl = null; }
     if (this.modeStyleEl) { this.modeStyleEl.remove(); this.modeStyleEl = null; }
   }

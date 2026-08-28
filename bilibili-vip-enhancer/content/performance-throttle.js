@@ -143,14 +143,18 @@ const PerformanceThrottle = {
 
   // ==================== 禁用预加载 ====================
 
+  /** 判断是否为应移除的资源预加载标签 */
+  isUnwantedPreload(link) {
+    const rel = link.getAttribute('rel');
+    if (rel !== 'preload' && rel !== 'prefetch' && rel !== 'preconnect') return false;
+    const as = link.getAttribute('as');
+    return as === 'video' || as === 'image' || as === 'fetch' || !as;
+  },
+
   disablePreload() {
     const removePreloadLinks = () => {
-      document.querySelectorAll('link[rel="preload"], link[rel="prefetch"], link[rel="preconnect"]').forEach(el => {
-        const as = el.getAttribute('as');
-        if (as === 'video' || as === 'image' || as === 'fetch' || !as) {
-          el.remove();
-        }
-      });
+      document.querySelectorAll('link[rel="preload"], link[rel="prefetch"], link[rel="preconnect"]')
+        .forEach(el => { if (this.isUnwantedPreload(el)) el.remove(); });
     };
     removePreloadLinks();
 
@@ -158,13 +162,8 @@ const PerformanceThrottle = {
     this._observers.watch(document.head, (mutations) => {
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
-          if (node.nodeType === 1 && node.tagName === 'LINK') {
-            const rel = node.getAttribute('rel');
-            const as = node.getAttribute('as');
-            if ((rel === 'preload' || rel === 'prefetch') &&
-                (as === 'video' || as === 'image' || as === 'fetch' || !as)) {
-              node.remove();
-            }
+          if (node.nodeType === 1 && node.tagName === 'LINK' && this.isUnwantedPreload(node)) {
+            node.remove();
           }
         }
       }
