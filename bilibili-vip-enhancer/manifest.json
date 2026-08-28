@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
   "name": "B站大会员增强助手",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "B站大会员专属权益增强、播放器优化、弹幕管理、页面净化、性能节流工具",
   "default_locale": "zh_CN",
+  "minimum_chrome_version": "88",
+  "author": "tgfxpfgt",
+  "homepage_url": "https://github.com/tgfxpfgt/bilibili-vip-enhancer",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -27,6 +30,24 @@
     "downloads",
     "alarms"
   ],
+  "commands": {
+    "take-screenshot": {
+      "suggested_key": { "default": "Alt+S" },
+      "description": "截图保存当前画面"
+    },
+    "toggle-danmaku": {
+      "suggested_key": { "default": "Alt+D" },
+      "description": "开启/关闭弹幕"
+    },
+    "speed-up": {
+      "suggested_key": { "default": "Alt+]" },
+      "description": "播放倍速 +0.25"
+    },
+    "speed-down": {
+      "suggested_key": { "default": "Alt+[" },
+      "description": "播放倍速 -0.25"
+    }
+  },
   "host_permissions": [
     "*://*.bilibili.com/*"
   ],

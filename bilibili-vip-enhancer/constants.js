@@ -18,6 +18,7 @@ const MSG = {
   SCREENSHOT:    'SCREENSHOT',
   EXPORT_DATA:   'EXPORT_DATA',
   IMPORT_DATA:   'IMPORT_DATA',
+  COMMAND:       'COMMAND',
   CONFIG_UPDATED:'CONFIG_UPDATED',
   TAB_ACTIVATED: 'TAB_ACTIVATED'
 };
@@ -25,7 +26,8 @@ const MSG = {
 /** 自定义事件名 */
 const EVT = {
   CONFIG_UPDATE: 'bili-enhancer-config-update',
-  TAB_ACTIVATED: 'bili-enhancer-tab-activated'
+  TAB_ACTIVATED: 'bili-enhancer-tab-activated',
+  COMMAND:       'bili-enhancer-command'
 };
 
 /** 视频元素选择器（按优先级降序） */
@@ -69,7 +71,8 @@ const DEFAULT_CONFIG = {
   },
   browseConfig: {
     commentEnhance: true, multiPartOptimize: true,
-    timestampCopy: true, videoInfo: true, upBlock: true
+    timestampCopy: true, videoInfo: true, upBlock: true,
+    titleFilters: []
   },
   vipConfig: {
     autoSkipGuide: true, hideVipDialogs: true,
@@ -157,3 +160,12 @@ const IMPORTABLE_KEYS = new Set([
   'purifyConfig', 'perfConfig', 'filterConfig', 'playerConfig',
   'browseConfig', 'vipConfig', 'blockedUPs', 'localTags', 'purchasedList'
 ]);
+
+/**
+ * 多设备云同步键（chrome.storage.sync，单键上限 8KB）
+ * 大体量数据（playerMemory/localTags/watchedEpisodes/purchasedList）不参与同步
+ */
+const SYNC_KEYS = [
+  'playerConfig', 'danmakuConfig', 'purifyConfig', 'perfConfig',
+  'filterConfig', 'browseConfig', 'vipConfig', 'qualityPrefs', 'blockedUPs'
+];

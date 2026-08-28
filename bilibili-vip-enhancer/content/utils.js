@@ -438,4 +438,7 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.type === MSG.TAB_ACTIVATED) {
     window.dispatchEvent(new CustomEvent(EVT.TAB_ACTIVATED));
   }
+  if (message.type === MSG.COMMAND) {
+    window.dispatchEvent(new CustomEvent(EVT.COMMAND, { detail: message.data }));
+  }
 });

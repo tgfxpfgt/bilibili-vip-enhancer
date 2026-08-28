@@ -23,6 +23,7 @@ const DanmakuManager = {
     this.applyStyles();
     this.setupKeywordFilter();
     this.setupDanmakuMode();
+    this.setupCommandToggle();
 
     // 监听配置更新
     this._events.on(window, EVT.CONFIG_UPDATE, (e) => {
@@ -174,6 +175,25 @@ const DanmakuManager = {
 
     this.modeStyleEl.textContent = modeCSS[mode] || '';
     document.head.appendChild(this.modeStyleEl);
+  },
+
+  // ==================== 浏览器级快捷键 ====================
+
+  /** Alt+D 运行时开关弹幕（仅切换显示，不写入配置） */
+  setupCommandToggle() {
+    this._events.on(window, EVT.COMMAND, (e) => {
+      if (!e.detail || e.detail.command !== 'toggle-danmaku') return;
+      const mode = this.config.mode || 'all';
+      if (mode !== 'none') {
+        this._previousMode = mode;
+        this.config.mode = 'none';
+        BiliEnhancer.showToast('已关闭弹幕（Alt+D 恢复）');
+      } else {
+        this.config.mode = this._previousMode || 'all';
+        BiliEnhancer.showToast('已开启弹幕');
+      }
+      this.setupDanmakuMode();
+    });
   },
 
   // ==================== 更新关键词 ====================

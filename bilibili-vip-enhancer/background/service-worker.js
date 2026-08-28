@@ -36,6 +36,92 @@ chrome.runtime.onInstalled.addListener(async () => {
     await chrome.storage.local.set({ ...DEFAULT_CONFIG, _initialized: true });
     console.log('[B站增强] 初始化配置完成');
   }
+  await restoreFromSync();
+  await updateBadge();
+});
+
+// ==================== 多设备云同步 ====================
+// 对标 BewlyBewly 的 storage sync 实践：小体量配置跨设备同步，
+// 大体量数据（播放记忆/标签等）仅存本地
+
+/** 写入配置时同步到云端（超配额等异常只告警不阻断） */
+async function syncToRemote(data) {
+  const payload = {};
+  for (const key of SYNC_KEYS) {
+    if (key in data) payload[key] = data[key];
+  }
+  if (Object.keys(payload).length === 0) return;
+  try {
+    await chrome.storage.sync.set(payload);
+  } catch (e) {
+    console.warn('[B站增强] 云同步写入失败（可能超出配额）:', e.message);
+  }
+}
+
+/** 启动时从云端恢复配置（其他设备修改在本设备生效） */
+async function restoreFromSync() {
+  try {
+    const remote = await chrome.storage.sync.get(null);
+    if (Object.keys(remote).length > 0) {
+      await chrome.storage.local.set(remote);
+    }
+  } catch (e) {
+    console.warn('[B站增强] 云同步恢复失败:', e.message);
+  }
+}
+
+// 本设备任何标签页写入 -> 推到云端；云端变化（其他设备）-> 广播到本设备标签页
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local') {
+    const data = {};
+    for (const [key, value] of Object.entries(changes)) data[key] = value.newValue;
+    syncToRemote(data);
+  } else if (area === 'sync') {
+    const data = {};
+    for (const [key, value] of Object.entries(changes)) data[key] = value.newValue;
+    chrome.storage.local.set(data).catch(() => {});
+    broadcastToTabs({ type: MSG.CONFIG_UPDATED, data });
+  }
+  if (changes.vipInfo) updateBadge();
+});
+
+/** 向所有 bilibili 标签页广播消息 */
+async function broadcastToTabs(message) {
+  try {
+    const tabs = await chrome.tabs.query({ url: '*://*.bilibili.com/*' });
+    for (const tab of tabs) {
+      chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+    }
+  } catch (e) { /* 标签页查询失败不影响主流程 */ }
+}
+
+// ==================== 徽标状态 ====================
+
+async function updateBadge() {
+  try {
+    const stored = await chrome.storage.local.get('vipInfo');
+    const vip = stored.vipInfo;
+    const isVip = !!vip && vip.status === 1 && vip.type === 2;
+    await chrome.action.setBadgeText({ text: isVip ? 'V' : '' });
+    if (isVip) {
+      await chrome.action.setBadgeBackgroundColor({ color: '#f7ba2a' });
+    }
+  } catch (e) { /* 徽标失败不影响主流程 */ }
+}
+
+// ==================== 浏览器级快捷键 ====================
+// 页面级快捷键在播放器失焦时失效，commands API 在任意页面均可用
+
+chrome.commands.onCommand.addListener(async (command) => {
+  try {
+    const [tab] = await chrome.tabs.query({
+      active: true, currentWindow: true, url: '*://*.bilibili.com/*'
+    });
+    if (!tab) return;
+    chrome.tabs.sendMessage(tab.id, { type: MSG.COMMAND, data: { command } }).catch(() => {});
+  } catch (e) {
+    console.warn('[B站增强] 快捷键转发失败:', e.message);
+  }
 });
 
 // ==================== Handler 实现 ====================
@@ -55,12 +141,7 @@ async function handleSetConfig(data) {
   try {
     await chrome.storage.local.set(data);
     // 通知所有 bilibili 标签页
-    try {
-      const tabs = await chrome.tabs.query({ url: '*://*.bilibili.com/*' });
-      for (const tab of tabs) {
-        chrome.tabs.sendMessage(tab.id, { type: MSG.CONFIG_UPDATED, data }).catch(() => {});
-      }
-    } catch (e) { /* 标签页查询失败不影响写入 */ }
+    broadcastToTabs({ type: MSG.CONFIG_UPDATED, data });
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };

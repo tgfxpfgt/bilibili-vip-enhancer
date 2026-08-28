@@ -46,6 +46,7 @@ const PlayerEnhancer = {
     this.setupTimerStop();
     this.setupFullscreenUI();
     this.setupVolumeBoost();
+    this.setupBrowserCommands();
   },
 
   // ==================== 画质自动优化 ====================
@@ -205,6 +206,21 @@ const PlayerEnhancer = {
     } catch (e) {
       BiliEnhancer.showToast('截图失败（可能是跨域限制）: ' + e.message);
     }
+  },
+
+  // ==================== 浏览器级快捷键 ====================
+
+  /** 处理 commands API 转发的命令（不受页面焦点影响） */
+  setupBrowserCommands() {
+    this._events.on(window, EVT.COMMAND, (e) => {
+      const command = e.detail && e.detail.command;
+      if (!this.video) return;
+      switch (command) {
+        case 'take-screenshot': this.takeScreenshot(); break;
+        case 'speed-up':        this.adjustRate(0.25); break;
+        case 'speed-down':      this.adjustRate(-0.25); break;
+      }
+    });
   },
 
   // ==================== 音量增强 ====================

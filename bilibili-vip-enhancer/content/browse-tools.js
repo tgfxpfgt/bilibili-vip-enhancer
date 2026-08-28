@@ -21,7 +21,18 @@ const BrowseTools = {
     if (this.config.timestampCopy) this.setupTimestampCopy();
     if (this.config.commentEnhance && BiliEnhancer.page.isVideoPage()) this.setupCommentEnhance();
     if (this.config.multiPartOptimize && BiliEnhancer.page.isVideoPage()) this.setupMultiPartOptimize();
-    if (this.config.upBlock) this.setupUPBlock();
+    if (this.config.upBlock) this.setupFeedFilter();
+
+    // 配置实时更新（UP 屏蔽列表 / 标题关键词即时生效）
+    this._events.on(window, EVT.CONFIG_UPDATE, (e) => {
+      if (!e.detail) return;
+      if (e.detail.blockedUPs) this.blockedUPs = e.detail.blockedUPs;
+      if (e.detail.browseConfig) {
+        this.config = e.detail.browseConfig;
+        // 过滤列表从空变为非空时动态启动（初始为空不会预启动）
+        if (this.config.upBlock && !this._feedFilterStarted) this.setupFeedFilter();
+      }
+    });
   },
 
   // ==================== 时间戳复制 ====================
@@ -223,33 +234,48 @@ const BrowseTools = {
     }, TIMING.BUTTON_INJECT_DELAY);
   },
 
-  // ==================== UP 主屏蔽 ====================
+  // ==================== 推荐流过滤（UP 主 + 标题关键词） ====================
 
-  setupUPBlock() {
-    if (this.blockedUPs.length === 0) return;
+  /** 对标 BewlyBewly title filter：首页/动态推荐流按 UP 主 UID 与标题关键词隐藏卡片 */
+  setupFeedFilter() {
+    if (this.blockedUPs.length === 0 && (this.config.titleFilters || []).length === 0) return;
+
+    const isBlockedUP = (card) => {
+      if (this.blockedUPs.length === 0) return false;
+      const upLink = card.querySelector('a[href*="space.bilibili.com"]');
+      if (!upLink) return false;
+      const uidMatch = upLink.href.match(/space\.bilibili\.com\/(\d+)/);
+      return uidMatch && this.blockedUPs.includes(uidMatch[1]);
+    };
+
+    const isBlockedTitle = (card) => {
+      const filters = this.config.titleFilters || [];
+      if (filters.length === 0) return false;
+      const titleEl = card.querySelector(
+        '.bili-video-card__info--tit, [class*="title"], h3'
+      );
+      if (!titleEl) return false;
+      const text = titleEl.textContent.trim();
+      return filters.some(kw => text.includes(kw));
+    };
 
     const blockCards = () => {
       // 首页 / 推荐流
       document.querySelectorAll('.bili-video-card, .video-card-reco, [class*="video-card"]').forEach(card => {
-        const upLink = card.querySelector('a[href*="space.bilibili.com"]');
-        if (!upLink) return;
-        const uidMatch = upLink.href.match(/space\.bilibili\.com\/(\d+)/);
-        if (uidMatch && this.blockedUPs.includes(uidMatch[1])) {
+        if (isBlockedUP(card) || isBlockedTitle(card)) {
           card.style.display = 'none';
         }
       });
 
       // 动态页面
       document.querySelectorAll('.bili-dyn-item, [class*="dyn-card"]').forEach(card => {
-        const upLink = card.querySelector('a[href*="space.bilibili.com"]');
-        if (!upLink) return;
-        const uidMatch = upLink.href.match(/space\.bilibili\.com\/(\d+)/);
-        if (uidMatch && this.blockedUPs.includes(uidMatch[1])) {
+        if (isBlockedUP(card)) {
           card.style.display = 'none';
         }
       });
     };
 
+    this._feedFilterStarted = true;
     this._timers.timeout(blockCards, TIMING.UP_BLOCK_INITIAL_DELAY);
     this._timers.interval(blockCards, TIMING.UP_BLOCK_POLL_INTERVAL);
     this._events.on(window, 'scroll', BiliEnhancer.throttle(blockCards, 2000), { passive: true });

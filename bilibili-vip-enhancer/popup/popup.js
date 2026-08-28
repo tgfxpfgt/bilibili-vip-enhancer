@@ -129,6 +129,7 @@ function loadBrowseConfig(config) {
   setChecked('multiPartOptimize', c.multiPartOptimize);
   setChecked('timestampCopy', c.timestampCopy);
   setChecked('videoInfo', c.videoInfo);
+  setValue('titleFilters', (c.titleFilters || []).join('\n'));
 }
 
 // ==================== VIP 状态展示 ====================
@@ -247,6 +248,14 @@ function bindBrowseEvents() {
     blockedUPs.addEventListener('blur', () => {
       const ups = blockedUPs.value.split('\n').map(u => u.trim()).filter(Boolean);
       saveConfig({ blockedUPs: ups });
+    });
+  }
+
+  const titleFilters = document.getElementById('titleFilters');
+  if (titleFilters) {
+    titleFilters.addEventListener('blur', () => {
+      const kws = titleFilters.value.split('\n').map(k => k.trim()).filter(Boolean);
+      updateConfig('browseConfig', { titleFilters: kws });
     });
   }
 }
