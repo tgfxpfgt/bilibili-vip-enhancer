@@ -36,6 +36,11 @@
 }
 
 /* ===== 标签按钮悬停 ===== */
+.bili-enhancer-tag-btn,
+.bili-enhancer-ts-btn,
+.bili-enhancer-info-btn {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
 .bili-enhancer-tag-btn:hover,
 .bili-enhancer-ts-btn:hover,
 .bili-enhancer-info-btn:hover {

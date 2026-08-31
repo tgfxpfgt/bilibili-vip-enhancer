@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         B站大会员增强助手 Lite
 // @namespace    https://github.com/tgfxpfgt/bilibili-vip-enhancer
-// @version      1.1.0
-// @description  B站大会员增强（油猴轻量版）：自动画质、快捷键、进度记忆、滤镜、弹幕管理、页面净化、推荐流过滤
+// @version      1.1.1
+// @description  B站大会员增强（油猴轻量版）：自动画质、快捷键、进度记忆、滤镜、弹幕管理、页面净化、推荐流过滤、本地标签收藏
 // @author       tgfxpfgt
 // @match        https://*.bilibili.com/*
 // @exclude      https://passport.bilibili.com/*
@@ -26,6 +26,7 @@
  * - 无浏览器级快捷键（commands API 为扩展专属）
  * - 无工具栏徽标、无后台定时清理
  * - 进度记忆存 localStorage（每域隔离，等价于扩展行为）
+ * - 本地标签存 localStorage（扩展存 chrome.storage.local）
  * - 截图直接用 GM_download / <a download>，无下载 API 依赖
  * - 设置通过 GM 菜单命令打开内置面板
  */
@@ -35,11 +36,12 @@
 
   // ==================== 常量（与扩展 constants.js 保持同步） ====================
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.1.1';
   const LS_PREFIX = 'bili-enhancer-lite:';
 
   const VIDEO_SELECTORS = '.bpx-player-video-area video, #bilibili-player video, .player-wrap video';
   const PLAYER_CONTAINER_SELECTORS = '.bpx-player-container, #bilibili-player, .player-wrap';
+  const TOOLBAR_SELECTORS = '.video-toolbar-left, .video-toolbar, .video-info';
 
   const QUALITY_MAP = {
     127: '8K 超高清', 126: '杜比视界', 125: 'HDR 真彩', 120: '4K 超清',
@@ -56,6 +58,7 @@
     TOAST_DURATION: 2000,
     VIP_CACHE: 5 * 60 * 1000,
     BUTTON_INJECT_DELAY: 2000,
+    TAG_DISPLAY_DELAY: 2500,
     UP_BLOCK_INTERVAL: 4000,
     UP_BLOCK_INITIAL: 2000
   };
@@ -67,7 +70,10 @@
     FRAME_STEP: 1 / 30,
     MAX_PROGRESS_ENTRIES: 500,
     PROGRESS_EXPIRY: 30 * 24 * 60 * 60 * 1000,
-    DENOISE_BLUR: '0.4px'
+    DENOISE_BLUR: '0.4px',
+    MAX_LOCAL_TAGS_PER_VIDEO: 20,
+    MAX_LOCAL_TAG_LENGTH: 20,
+    MAX_TAGGED_VIDEOS: 2000
   };
 
   // ==================== 默认配置（与扩展 DEFAULT_CONFIG 保持同步） ====================
@@ -169,6 +175,15 @@
       const now = Date.now();
       if (now - last >= delay) { last = now; fn.apply(this, args); }
     };
+  }
+
+  /** 快速构建带内联样式/属性/文本的元素 */
+  function makeEl(tag, style = {}, text = '', attrs = {}) {
+    const node = document.createElement(tag);
+    Object.assign(node.style, style);
+    if (text) node.textContent = text;
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    return node;
   }
 
   function showToast(msg, duration = TIMING.TOAST_DURATION) {
@@ -830,6 +845,266 @@
     }
   };
 
+  // ==================== 本地标签收藏（与扩展 local-tags.js 逻辑同步） ====================
+
+  const LocalTags = {
+    tags: {},
+
+    init() {
+      try {
+        this.tags = JSON.parse(localStorage.getItem(LS_PREFIX + 'localTags')) || {};
+      } catch (e) { this.tags = {}; }
+
+      // 清理上一次注入，避免 SPA 换视频后残留旧标签
+      document.querySelectorAll('.belite-tags').forEach(el => el.remove());
+
+      if (page.isVideoPage()) {
+        this.setupTagButton();
+        this.showCurrentTags();
+      }
+    },
+
+    save() {
+      try {
+        localStorage.setItem(LS_PREFIX + 'localTags', JSON.stringify(this.tags));
+      } catch (e) { /* 存储满等异常忽略 */ }
+    },
+
+    /** 有标签的视频总数超限时淘汰最早的记录 */
+    evictOverflow() {
+      const keys = Object.keys(this.tags);
+      if (keys.length <= LIMITS.MAX_TAGGED_VIDEOS) return;
+      keys.slice(0, keys.length - LIMITS.MAX_TAGGED_VIDEOS)
+        .forEach(k => delete this.tags[k]);
+    },
+
+    /** 近期常用标签（全部视频按使用频次取前 8） */
+    getRecentTags(limit = 8) {
+      const counts = {};
+      Object.values(this.tags).forEach(list => {
+        (list || []).forEach(t => { counts[t] = (counts[t] || 0) + 1; });
+      });
+      return Object.keys(counts)
+        .sort((a, b) => counts[b] - counts[a])
+        .slice(0, limit);
+    },
+
+    // ---------- 标签按钮注入 ----------
+
+    setupTagButton() {
+      setTimeout(() => {
+        const toolbar = queryFirst(TOOLBAR_SELECTORS);
+        if (!toolbar || toolbar.querySelector('.belite-tag-btn')) return;
+
+        const btn = makeEl('button', {
+          background: '#f0f0f0', color: '#333', border: '1px solid #ddd',
+          borderRadius: '4px', padding: '4px 10px', fontSize: '12px',
+          cursor: 'pointer', marginLeft: '8px'
+        }, '+ 标签', { class: 'belite-tag-btn', title: '添加本地标签' });
+        btn.addEventListener('click', () => this.showTagDialog());
+        toolbar.appendChild(btn);
+      }, TIMING.BUTTON_INJECT_DELAY);
+    },
+
+    // ---------- 显示当前标签 ----------
+
+    showCurrentTags() {
+      const videoId = page.getVideoId();
+      if (!videoId) return;
+      const videoTags = this.tags[videoId];
+      if (!videoTags || videoTags.length === 0) return;
+
+      setTimeout(() => {
+        const titleArea = queryFirst('.video-title, h1, [class*="video-title"]');
+        if (!titleArea || titleArea.parentElement.querySelector('.belite-tags')) return;
+
+        const tagWrap = makeEl('div', {
+          display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px'
+        }, '', { class: 'belite-tags' });
+
+        videoTags.forEach(tag => {
+          const tagEl = makeEl('span', {
+            background: '#e8f4fd', color: '#1890ff',
+            padding: '2px 8px', borderRadius: '10px',
+            fontSize: '11px', cursor: 'pointer'
+          }, tag, { title: '点击删除标签' });
+          tagEl.addEventListener('click', () => this.removeTag(videoId, tag));
+          tagWrap.appendChild(tagEl);
+        });
+
+        titleArea.parentElement.appendChild(tagWrap);
+      }, TIMING.TAG_DISPLAY_DELAY);
+    },
+
+    async removeTag(videoId, tag) {
+      if (!this.tags[videoId]) return;
+      const idx = this.tags[videoId].indexOf(tag);
+      if (idx < 0) return;
+      this.tags[videoId].splice(idx, 1);
+      if (this.tags[videoId].length === 0) delete this.tags[videoId];
+      this.save();
+      document.querySelector('.belite-tags')?.remove();
+      this.showCurrentTags();
+      showToast(`已删除标签: ${tag}`);
+    },
+
+    // ---------- 标签对话框 ----------
+
+    showTagDialog() {
+      document.querySelector('.belite-tag-dialog')?.remove();
+      document.querySelector('.belite-tag-mask')?.remove();
+
+      const videoId = page.getVideoId();
+      if (!videoId) { showToast('无法获取视频ID'); return; }
+
+      const currentTags = [...(this.tags[videoId] || [])];
+      const { dialog, mask, input, tagList, suggestWrap } = this.buildDialogDOM(currentTags);
+
+      const renderTags = () => {
+        tagList.textContent = '';
+        const chipStyle = {
+          background: '#e8f4fd', color: '#1890ff',
+          padding: '2px 8px', borderRadius: '10px', fontSize: '12px',
+          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px'
+        };
+        currentTags.forEach(tag => {
+          const tagEl = makeEl('span', { ...chipStyle }, tag + ' \u00d7');
+          tagEl.addEventListener('click', () => {
+            const i = currentTags.indexOf(tag);
+            if (i >= 0) currentTags.splice(i, 1);
+            renderTags();
+          });
+          tagList.appendChild(tagEl);
+        });
+      };
+      renderTags();
+
+      /** 添加标签（含长度/数量校验），成功返回 true */
+      const addTag = (raw) => {
+        const val = (raw || '').trim();
+        if (!val || currentTags.includes(val)) return false;
+        if (val.length > LIMITS.MAX_LOCAL_TAG_LENGTH) {
+          showToast(`标签最多 ${LIMITS.MAX_LOCAL_TAG_LENGTH} 个字符`);
+          return false;
+        }
+        if (currentTags.length >= LIMITS.MAX_LOCAL_TAGS_PER_VIDEO) {
+          showToast(`每个视频最多 ${LIMITS.MAX_LOCAL_TAGS_PER_VIDEO} 个标签`);
+          return false;
+        }
+        currentTags.push(val);
+        renderTags();
+        return true;
+      };
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && addTag(input.value)) input.value = '';
+      });
+      dialog.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { dialog.remove(); mask.remove(); }
+      });
+
+      // 常用标签建议（按使用频次取前 8，点击即添加）
+      const suggestions = this.getRecentTags();
+      if (suggestions.length > 0) {
+        suggestions.forEach(tag => {
+          const chip = makeEl('span', {
+            background: '#f5f5f5', color: '#666', border: '1px dashed #ccc',
+            padding: '2px 8px', borderRadius: '10px', fontSize: '11px', cursor: 'pointer'
+          }, tag, { title: '点击添加' });
+          chip.addEventListener('click', () => {
+            if (addTag(tag)) chip.style.opacity = '0.35';
+          });
+          suggestWrap.appendChild(chip);
+        });
+      } else {
+        suggestWrap.style.display = 'none';
+      }
+
+      document.body.appendChild(mask);
+      document.body.appendChild(dialog);
+      input.focus();
+    },
+
+    buildDialogDOM(currentTags) {
+      const dialog = makeEl('div', {
+        position: 'fixed', top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)', background: '#fff',
+        borderRadius: '10px', padding: '20px',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+        zIndex: '999999', minWidth: '300px'
+      }, '', { class: 'belite-tag-dialog' });
+
+      dialog.appendChild(makeEl('div', {
+        fontSize: '15px', fontWeight: 'bold', marginBottom: '12px'
+      }, '添加本地标签'));
+
+      const input = makeEl('input', {
+        width: '100%', padding: '8px 12px', border: '1px solid #ddd',
+        borderRadius: '6px', fontSize: '13px', outline: 'none', boxSizing: 'border-box'
+      }, '', { type: 'text', placeholder: '输入标签名，回车添加（如：教程、音乐、待看）' });
+      dialog.appendChild(input);
+
+      const suggestWrap = makeEl('div', {
+        display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '8px', alignItems: 'center'
+      });
+      dialog.appendChild(suggestWrap);
+
+      const tagList = makeEl('div', {
+        display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '10px', minHeight: '24px'
+      });
+      dialog.appendChild(tagList);
+
+      const btnWrap = makeEl('div', {
+        display: 'flex', gap: '8px', marginTop: '14px', justifyContent: 'flex-end'
+      });
+      const cancelBtn = makeEl('button', {
+        background: '#f0f0f0', color: '#333', border: 'none',
+        borderRadius: '6px', padding: '6px 16px', fontSize: '13px', cursor: 'pointer'
+      }, '取消');
+      const saveBtn = makeEl('button', {
+        background: '#fb7299', color: '#fff', border: 'none',
+        borderRadius: '6px', padding: '6px 16px', fontSize: '13px', cursor: 'pointer'
+      }, '保存');
+      btnWrap.appendChild(cancelBtn);
+      btnWrap.appendChild(saveBtn);
+      dialog.appendChild(btnWrap);
+
+      const mask = makeEl('div', {
+        position: 'fixed', top: '0', left: '0', right: '0', bottom: '0',
+        background: 'rgba(0,0,0,0.3)', zIndex: '999998'
+      }, '', { class: 'belite-tag-mask' });
+
+      saveBtn.addEventListener('click', () => {
+        const videoId = page.getVideoId();
+        if (!videoId) { showToast('无法获取视频ID'); return; }
+        if (currentTags.length === 0) {
+          delete this.tags[videoId];
+        } else {
+          this.tags[videoId] = currentTags;
+        }
+        this.evictOverflow();
+        this.save();
+        dialog.remove();
+        mask.remove();
+        showToast('标签已保存');
+        document.querySelector('.belite-tags')?.remove();
+        this.showCurrentTags();
+      });
+
+      const close = () => { dialog.remove(); mask.remove(); };
+      cancelBtn.addEventListener('click', close);
+      mask.addEventListener('click', close);
+
+      return { dialog, mask, input, tagList, suggestWrap };
+    },
+
+    destroy() {
+      document.querySelectorAll(
+        '.belite-tag-btn, .belite-tags, .belite-tag-dialog, .belite-tag-mask'
+      ).forEach(el => el.remove());
+    }
+  };
+
   // ==================== 设置面板 ====================
 
   const SettingsPanel = {
@@ -1045,6 +1320,7 @@
       Danmaku.init();
       if (full) {
         Player.init();
+        LocalTags.init();
       } else {
         applyFilter(Player.video);
       }
@@ -1065,6 +1341,7 @@
           // 离开视频页：清理页面级资源
           Danmaku.destroy();
           Player.resetPageState();
+          LocalTags.destroy();
         }
       }, TIMING.SPA_REINIT_DELAY);
     };
@@ -1138,6 +1415,7 @@
     SettingsPanel.init();
     Purifier.init();
     FeedFilter.init();
+    LocalTags.init();
     if (page.isVideoPage()) Player.init();
     setupSPAListener();
 

@@ -225,5 +225,8 @@ const VipPanel = {
     this._events?.destroy();
     this._observers?.destroy();
     this._timers?.destroy();
+    // 移除本模块注入的 DOM，避免 SPA 导航残留
+    document.querySelectorAll('.bili-enhancer-vip-badge, .bili-enhancer-dm-advanced')
+      .forEach(el => el.remove());
   }
 };

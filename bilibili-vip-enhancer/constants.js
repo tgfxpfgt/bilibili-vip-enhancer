@@ -142,7 +142,10 @@ const LIMITS = {
   MAX_PLAYBACK_RATE:     10,              // 最大播放倍速
   FRAME_STEP:            1 / 30,          // 逐帧步长（30fps）
   MAX_IMPORT_FILE_SIZE:  10 * 1024 * 1024,// 导入文件最大 10MB
-  MAX_SCRIPT_SEARCH:     10               // 搜索 script 标签最大数量
+  MAX_SCRIPT_SEARCH:     10,              // 搜索 script 标签最大数量
+  MAX_LOCAL_TAGS_PER_VIDEO: 20,           // 单视频最多本地标签数
+  MAX_LOCAL_TAG_LENGTH:  20,              // 单个标签最大字符数
+  MAX_TAGGED_VIDEOS:     2000             // 最多有标签的视频数（超出淘汰最早）
 };
 
 /** 懒加载 rootMargin */

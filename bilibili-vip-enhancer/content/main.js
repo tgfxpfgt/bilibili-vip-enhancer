@@ -91,10 +91,12 @@
     if (location.href === lastUrl) return;
     lastUrl = location.href;
 
-    // 路由变化后延迟重新初始化视频模块
+    // 路由变化后延迟处理：进入视频页重新初始化，离开则销毁并清理
     setTimeout(async () => {
       if (BiliEnhancer.page.isVideoPage()) {
         await reinitVideoModules();
+      } else {
+        VIDEO_MODULES.forEach(name => callModule(name, 'destroy'));
       }
     }, TIMING.SPA_REINIT_DELAY);
   }, TIMING.SPA_POLL_INTERVAL);

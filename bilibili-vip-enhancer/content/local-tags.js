@@ -80,6 +80,8 @@ const LocalTags = {
   showTagDialog() {
     const existing = document.querySelector('.bili-enhancer-tag-dialog');
     if (existing) existing.remove();
+    const oldMask = document.querySelector('.bili-enhancer-tag-mask');
+    if (oldMask) oldMask.remove();
 
     const videoId = BiliEnhancer.page.getVideoId();
     if (!videoId) {
@@ -88,21 +90,52 @@ const LocalTags = {
     }
 
     const currentTags = [...(this.tags[videoId] || [])];
-    const { dialog, mask, input, tagList } = this.buildDialogDOM(currentTags);
+    const { dialog, mask, input, tagList, suggestWrap } = this.buildDialogDOM(currentTags);
     const renderTags = this.createTagRenderer(tagList, currentTags);
     renderTags();
+
+    /** 添加标签（含长度/数量校验），成功返回 true */
+    const addTag = (raw) => {
+      const val = (raw || '').trim();
+      if (!val || currentTags.includes(val)) return false;
+      if (val.length > LIMITS.MAX_LOCAL_TAG_LENGTH) {
+        BiliEnhancer.showToast(`标签最多 ${LIMITS.MAX_LOCAL_TAG_LENGTH} 个字符`);
+        return false;
+      }
+      if (currentTags.length >= LIMITS.MAX_LOCAL_TAGS_PER_VIDEO) {
+        BiliEnhancer.showToast(`每个视频最多 ${LIMITS.MAX_LOCAL_TAGS_PER_VIDEO} 个标签`);
+        return false;
+      }
+      currentTags.push(val);
+      renderTags();
+      return true;
+    };
 
     // 回车添加标签
     this._events.on(input, 'keydown', (e) => {
       if (e.key === 'Enter') {
-        const val = input.value.trim();
-        if (val && !currentTags.includes(val)) {
-          currentTags.push(val);
-          renderTags();
-          input.value = '';
-        }
+        if (addTag(input.value)) input.value = '';
       }
     });
+
+    // 常用标签建议（按使用频次取前 8，点击即添加）
+    const suggestions = this.getRecentTags();
+    if (suggestions.length > 0) {
+      suggestions.forEach(tag => {
+        const chip = BiliEnhancer.dom.createElement('span', {
+          title: '点击添加'
+        }, {
+          background: '#f5f5f5', color: '#666', border: '1px dashed #ccc',
+          padding: '2px 8px', borderRadius: '10px', fontSize: '11px', cursor: 'pointer'
+        }, tag);
+        this._events.on(chip, 'click', () => {
+          if (addTag(tag)) chip.style.opacity = '0.35';
+        });
+        suggestWrap.appendChild(chip);
+      });
+    } else {
+      suggestWrap.style.display = 'none';
+    }
 
     // Escape 关闭
     this._events.on(dialog, 'keydown', (e) => {
@@ -112,6 +145,25 @@ const LocalTags = {
     document.body.appendChild(mask);
     document.body.appendChild(dialog);
     input.focus();
+  },
+
+  /** 近期常用标签（全部视频按使用频次取前 8） */
+  getRecentTags(limit = 8) {
+    const counts = {};
+    Object.values(this.tags).forEach(list => {
+      (list || []).forEach(t => { counts[t] = (counts[t] || 0) + 1; });
+    });
+    return Object.keys(counts)
+      .sort((a, b) => counts[b] - counts[a])
+      .slice(0, limit);
+  },
+
+  /** 有标签的视频总数超限时淘汰最早的记录 */
+  evictOverflow() {
+    const keys = Object.keys(this.tags);
+    if (keys.length <= LIMITS.MAX_TAGGED_VIDEOS) return;
+    keys.slice(0, keys.length - LIMITS.MAX_TAGGED_VIDEOS)
+      .forEach(k => delete this.tags[k]);
   },
 
   /** 构建对话框 DOM（从 showTagDialog 拆分） */
@@ -138,6 +190,13 @@ const LocalTags = {
     });
     dialog.appendChild(input);
 
+    const suggestWrap = BiliEnhancer.dom.createElement('div', {
+      class: 'bili-enhancer-tag-suggest'
+    }, {
+      display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '8px', alignItems: 'center'
+    });
+    dialog.appendChild(suggestWrap);
+
     const tagList = BiliEnhancer.dom.createElement('div', {}, {
       display: 'flex', gap: '4px', flexWrap: 'wrap',
       marginTop: '10px', minHeight: '24px'
@@ -162,7 +221,9 @@ const LocalTags = {
     btnWrap.appendChild(saveBtn);
     dialog.appendChild(btnWrap);
 
-    const mask = BiliEnhancer.dom.createElement('div', {}, {
+    const mask = BiliEnhancer.dom.createElement('div', {
+      class: 'bili-enhancer-tag-mask'
+    }, {
       position: 'fixed', top: '0', left: '0', right: '0', bottom: '0',
       background: 'rgba(0,0,0,0.3)', zIndex: '999998'
     });
@@ -170,7 +231,16 @@ const LocalTags = {
     // 事件绑定
     this._events.on(saveBtn, 'click', async () => {
       const videoId = BiliEnhancer.page.getVideoId();
-      this.tags[videoId] = currentTags;
+      if (!videoId) {
+        BiliEnhancer.showToast('无法获取视频ID');
+        return;
+      }
+      if (currentTags.length === 0) {
+        delete this.tags[videoId];
+      } else {
+        this.tags[videoId] = currentTags;
+      }
+      this.evictOverflow();
       await BiliEnhancer.storage.set({ localTags: this.tags });
       dialog.remove();
       mask.remove();
@@ -183,7 +253,7 @@ const LocalTags = {
     this._events.on(cancelBtn, 'click', () => { dialog.remove(); mask.remove(); });
     this._events.on(mask, 'click', () => { dialog.remove(); mask.remove(); });
 
-    return { dialog, mask, input, tagList };
+    return { dialog, mask, input, tagList, suggestWrap };
   },
 
   /** 创建标签列表渲染器（自引用，对话框内临时元素用原生事件） */
@@ -231,5 +301,9 @@ const LocalTags = {
   destroy() {
     this._events?.destroy();
     this._timers?.destroy();
+    // 移除本模块注入的 DOM，避免 SPA 导航残留
+    document.querySelectorAll(
+      '.bili-enhancer-tag-btn, .bili-enhancer-tags, .bili-enhancer-tag-dialog, .bili-enhancer-tag-mask'
+    ).forEach(el => el.remove());
   }
 };
